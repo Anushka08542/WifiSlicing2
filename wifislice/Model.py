@@ -168,25 +168,29 @@ class ModelHelper():
         '''
 
         obsTensors = self.convertObsToTensors(obs)
-        
-        mean_latencyA = torch.mean(obsTensors[0][3])
         mean_error_probA = torch.mean(1 - obsTensors[0][2]/obsTensors[0][1])
-        targetA = -mean_latencyA - mean_error_probA                               #eMBB
-
-        mean_latencyB = torch.mean(obsTensors[1][3])
         mean_error_probB = torch.mean(1 - obsTensors[1][2]/obsTensors[1][1])
-        txPowerB = action["txPower"][1]     #Todo : multiply with numStationsB?
-        targetB = - mean_latencyB - mean_error_probB - txPowerB                   #Minimize power used as well mMTC
-
-        mean_latencyC = torch.mean(obsTensors[2][3])
         mean_error_probC = torch.mean(1 - obsTensors[2][2]/obsTensors[2][1])
-        targetC = -10*mean_latencyC - mean_error_probC                               #Focus more on latency URLLC
 
-        throughput = sum([sum(obsTensors[i][2]) * 1472 * 8 for i in range(3)])/1000000.0  #1472 is payload size, 8 bits #Todo : Divide by sim time ?
-        totalBandWidth = sum([chWidthFromChNum(action["chNum"][i]) for i in range(3)])
-        se = throughput/totalBandWidth
+        return mean_error_probA + mean_error_probB + mean_error_probC
+#         mean_latencyA = torch.mean(obsTensors[0][3])
+#         mean_error_probA = torch.mean(1 - obsTensors[0][2]/obsTensors[0][1])
+#         targetA = -mean_latencyA - mean_error_probA                               #eMBB
 
-        return targetA + targetB + targetC + se
+#         mean_latencyB = torch.mean(obsTensors[1][3])
+#         mean_error_probB = torch.mean(1 - obsTensors[1][2]/obsTensors[1][1])
+#         txPowerB = action["txPower"][1]     #Todo : multiply with numStationsB?
+#         targetB = - mean_latencyB - mean_error_probB - txPowerB                   #Minimize power used as well mMTC
+
+#         mean_latencyC = torch.mean(obsTensors[2][3])
+#         mean_error_probC = torch.mean(1 - obsTensors[2][2]/obsTensors[2][1])
+#         targetC = -10*mean_latencyC - mean_error_probC                               #Focus more on latency URLLC
+
+#         throughput = sum([sum(obsTensors[i][2]) * 1472 * 8 for i in range(3)])/1000000.0  #1472 is payload size, 8 bits #Todo : Divide by sim time ?
+#         totalBandWidth = sum([chWidthFromChNum(action["chNum"][i]) for i in range(3)])
+#         se = throughput/totalBandWidth
+
+#         return targetA + targetB + targetC + se
 
     def getInputFeaturesFromObservation(self, obs):
         obsTensors = self.convertObsToTensors(obs)
