@@ -44,7 +44,6 @@ def runSimulation(
             stepIdx = 0
             done = False
             pbar = tqdm(total=sim_time // step_time)
-            losses = []
             while not done:
                 #Update calls start from 2 secs.
                 if stepIdx < 2:
@@ -58,18 +57,13 @@ def runSimulation(
                     obs_cur, _, done, _ = env.step(action)
 
                     #sas' (reward is a funciton of s in this case)
-                    loss_curr = helper.saveObsActionFeaturesInMemory(obs_prev, action, actionTuple, obs_cur)
-                    if loss_curr is not None:
-                        loss = loss_curr
-                        losses.append(loss)
+                    helper.saveObsActionFeaturesInMemory(obs_prev, action, actionTuple, obs_cur)
+
                 obs_prev = obs_cur
                 stepIdx += 1
-                pbar.set_postfix({'Idx' : stepIdx,
-                                  'Loss': sum(losses)/(len(losses)+1e-4),
-                                  'Other info': "Some variable"})
+                pbar.set_postfix({'Idx' : stepIdx})
                 pbar.update(1)
             pbar.close()
-            helper.saveModel(losses)
 
     except KeyboardInterrupt:
         print("Ctrl-C -> Exit")
