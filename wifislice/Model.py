@@ -24,27 +24,8 @@ class ModelHelper():
     '''
     def __init__(self, device, outdir, resume_from, batch_size = 4, epsilon = 0.1):
         self.device = device
-        self.model = BasicModel().to(self.device)
-        self.optim = torch.optim.Adam(lr=1e-4, params=self.model.parameters())
-        self.loss_fn = nn.MSELoss()
         self.outdir = outdir
-        self.prevEpoch = -1
-        self.trainLosses = []
-        self.batch_size = batch_size
-        self.epsilon = epsilon
-        self.memory = []
-        self.trainSubprocess = None
-        if resume_from is not None:
-            checkpoint = torch.load(resume_from)
-            self.prevEpoch = checkpoint['epoch']
-
-            print("Resuming from checkpoint at, ", resume_from, ", epoch, ", self.prevEpoch)
-
-            self.trainLosses = checkpoint['trainLosses']
-            self.model.load_state_dict(checkpoint['state_dict'], strict = True)
-            self.optim.load_state_dict(checkpoint['optimizer_state_dict'])
-
-            del checkpoint
+        self.idx = 0
 
     def getActionTuple(self, obs, action):
         '''
@@ -52,24 +33,7 @@ class ModelHelper():
         last observation and action, The vector decides whether a variable
         should be decreased, increased or remain constant.
         '''
-
-        if ri(0, 10)/10 > self.epsilon:
-            return tuple([ri(0, 2) for i in range(12)])
-
-        with torch.no_grad():
-            self.model.train(False)
-            featA, featB, featC = self.getInputFeaturesFromObservation(obs)
-            actA, actB, actC = torch.unbind(self.convertActionToTensor(action))
-
-            featA = torch.cat([featA, actA])
-            featB = torch.cat([featB, actB])
-            featC = torch.cat([featC, actC])
-
-            x = torch.cat([featA, featB, featC]).unsqueeze(0).to(self.device)
-            predicted_target = self.model(x)
-
-            indices = multiDimBatchArgmax(predicted_target)[0]
-            return indices
+        return tuple([ri(0, 2) for i in range(12)])
 
     def getActionFromActionTuple(self, action_tuple, action):
         '''
@@ -107,55 +71,14 @@ class ModelHelper():
 
         x = torch.cat([featA, featB, featC]).unsqueeze(0)
         real_target = self.getTarget(obs_new, action)
-        self.memory.append((x, action_tuple, real_target))
-        if len(self.memory) == self.batch_size:
-            loss = self.trainModel()
-            assert len(self.memory) == 0
-            return loss
-
-    def trainModel(self):
-        '''
-        Use the new observation to train the model. Also returns the loss of this step.
-        obs, action are input to the model. The model predicts the target for all possible
-        actions. action_tuple is used to select the predicted target for the best action we
-        chose before. Real target value is predicted using obs_new.
-        obs --> action --> obs_new
-        '''
-
-        self.model.train()
-
-        xs = []
-        action_tuples = []
-        real_targets = []
-        for x, action_tuple, real_target in self.memory:
-            xs.append(x)
-            action_tuples.append(action_tuple)
-            real_targets.append(real_target)
-
-        #empty memory
-        del self.memory[:]
-        xs = torch.cat(xs, dim = 0)
-        real_targets = torch.stack(real_targets)
-
-        prediction = self.model(xs.to(self.device))
-
-        #index using action tuple
-        predicted_target = torch.stack([prediction[i][action_tuples[i]] for i in range(prediction.shape[0])])
-
-        loss = self.loss_fn(predicted_target, real_targets.to(self.device))
-        loss_value = loss.item()
-
-        self.optim.zero_grad()
-        loss.backward()
-        self.optim.step()
-
-        if np.isinf(loss_value):
-            print("Inf values in target ", torch.max(torch.isinf(real_target)))
-            print("Inf values in predicted ", torch.max(torch.isinf(predicted_target)))
-        if np.isnan(loss_value):
-            print("Nan values in target ", torch.max(torch.isnan(real_target)))
-            print("Nan values in predicted ", torch.max(torch.isnan(predicted_target)))
-        return loss_value
+        train_data = {
+            'x': x,
+            'action_tuple': action_tuple,
+            'real_target': real_target,
+        }
+        torch.save(train_data,
+                    self.outdir + str(self.idx) + '.pt')
+        self.idx += 1
 
     def getTarget(self, obs, action):
         '''
@@ -171,8 +94,8 @@ class ModelHelper():
         mean_error_probA = torch.mean(1 - obsTensors[0][1]/obsTensors[0][0])
         mean_error_probB = torch.mean(1 - obsTensors[1][1]/obsTensors[1][0])
         mean_error_probC = torch.mean(1 - obsTensors[2][1]/obsTensors[2][0])
-
-        return mean_error_probA + mean_error_probB + mean_error_probC
+        return ean_error_probA + mean_error_probB + mean_error_probC
+        
 #         mean_latencyA = torch.mean(obsTensors[0][3])
 #         mean_error_probA = torch.mean(1 - obsTensors[0][2]/obsTensors[0][1])
 #         targetA = -mean_latencyA - mean_error_probA                               #eMBB
@@ -238,7 +161,7 @@ class ModelHelper():
         #drB = drB / 100000
         tpB = tpB / 100
         rpB = rpB / 100
-        #lB = lA / 1000
+        #lB = lB / 1000
         #rPowB = rPowB / 20
 
         #drC = drC / 100
@@ -250,7 +173,6 @@ class ModelHelper():
                 (tpB, rpB),
                 (tpC, rpC)]
 
-
     def convertActionToTensor(self, action):
         '''
         Convert to tensor and normalize
@@ -261,38 +183,3 @@ class ModelHelper():
         txPower = torch.Tensor(action["txPower"]).float() / 20
 
         return torch.stack([chNum, gi, mcs, txPower]).transpose(0, 1)
-
-    def saveModel(self, trainLosses):
-        self.prevEpoch = self.prevEpoch + 1
-        self.trainLosses.extend(trainLosses)
-        checkpoint = {
-            'epoch': self.prevEpoch,
-            'state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optim.state_dict(),
-            'trainLosses' : self.trainLosses,
-        }
-        torch.save(checkpoint,
-                    self.outdir + "checkpoint" + str(self.prevEpoch) + '.pt')
-
-class BasicModel(nn.Module):
-    '''
-    Basic model that predicts target value for 3^12 possible actions
-    given the previous observation and the action.
-    '''
-    def __init__(self):
-        super(BasicModel, self).__init__()
-        input_size = 72
-        output_size = pow(3, 12)
-
-        self.layers = nn.Sequential(
-            nn.Linear(input_size, pow(2, 7)),
-            nn.ReLU(),
-            nn.Linear(pow(2, 7), pow(2, 9)),
-            nn.ReLU(),
-            nn.Linear(pow(2, 9), output_size)
-        )
-    def forward(self, x):
-        x = self.layers(x)
-        shape = tuple([-1] + [3 for i in range(12)])
-        x = x.reshape(shape)
-        return x
