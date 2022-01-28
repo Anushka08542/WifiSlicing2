@@ -168,9 +168,9 @@ class ModelHelper():
         '''
 
         obsTensors = self.convertObsToTensors(obs)
-        mean_error_probA = torch.mean(1 - obsTensors[0][2]/obsTensors[0][1])
-        mean_error_probB = torch.mean(1 - obsTensors[1][2]/obsTensors[1][1])
-        mean_error_probC = torch.mean(1 - obsTensors[2][2]/obsTensors[2][1])
+        mean_error_probA = torch.mean(1 - obsTensors[0][1]/obsTensors[0][0])
+        mean_error_probB = torch.mean(1 - obsTensors[1][1]/obsTensors[1][0])
+        mean_error_probC = torch.mean(1 - obsTensors[2][1]/obsTensors[2][0])
 
         return mean_error_probA + mean_error_probB + mean_error_probC
 #         mean_latencyA = torch.mean(obsTensors[0][3])
